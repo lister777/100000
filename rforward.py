@@ -50,8 +50,8 @@ def reverse_forward_tunnel(server_port, remote_host, remote_port, transport):
         thr = threading.Thread(
             target=handler, args=(chan, remote_host, remote_port)
             )
-            thr.setDaemon(True)
-            thr.start()
+        thr.setDaemon(True)
+        thr.start()
             
 
 def verbose(s):
