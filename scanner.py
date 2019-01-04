@@ -3,8 +3,34 @@ import os
 import struct
 from ctypes import *
 
+import threading
+import time
+from netaddr import IPNetwork, IPAddress
+
 # host to listen on
 host = "172.31.23.61"
+
+# subnet to target
+subnet = "172.31.23.0/24"
+
+# magic string we'll check ICMP responses for
+magic_message = "PYTHONRULES!"
+
+# this sprays out the UDP datagrams
+def udp_sender(subnet, magic_message):
+    time.sleep(5)
+    sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+    for ip in IPNetwork(subnet):
+        try:
+            sender.sendto(magic_message, ("%s" %ip, 65212))
+        except:
+            pass
+
+# start sending packets
+
+t = threading.Thread(target=udp_sender, args=(subnet, magic_message))
+t.start()
 
 # our IP header
 class IP(Structure):
@@ -81,8 +107,6 @@ try:
         # print out the protocol that was detected and the hosts
         print("Protocol: %s %s -> %s" % (ip_header.protocol, ip_header.src_address, ip_header.dst_address))
         
-        #print("Protocol: %s %s -> %s" %(ip_header.protocol, ip_header.src_address, ip_header.dst_address))
-        
         # if it's ICMP, we want it
         if ip_header.protocol == "ICMP":
             
@@ -93,13 +117,40 @@ try:
             # create our ICMP structure
             icmp_header = ICMP(buf)
             
-            print("ICMP -> Type: %d Code: %d" % (icmp_header.type, icmp_header.code))
+            #print("ICMP -> Type: %d Code: %d" % (icmp_header.type, icmp_header.code))
+            
+            # now check for the TYPE 3 and CODE
+            if icmp_header.code == 3 and icmp_header.type == 3:
+                
+                # make sure host is in our target subnet
+                if IPAddress(ip_header.src_address) in IPNetwork(subnet):
+                    
+                    #make usre it has our magic message
+                    if raw_buffer[len(raw_buffer)-len(magic_message):] == magic_message:
+                        print("Host Up: %s" % ip_header.src_address)
             
 # handle CTRL-C
 except KeyboardInterrupt:
     # if we're using Windows, turn off promiscuous mode
     if os.name == "nt":
         sniffer.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
         
