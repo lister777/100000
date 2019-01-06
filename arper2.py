@@ -13,8 +13,8 @@ def restore_target(gateway_ip, gateway_mac, target_ip, target_mac):
     
     # slightly different method using send
     print("[*] Resotring target...")
-    send(ARP(op=2, psrc=gateway_ip, pdst=target_ip, hwdst="ff:ff:ff:ff:ff:ff", hsrc=gateway_mac), count=5)
-    send(ARP(op=2, psrc=target_ip, pdst=gateway_ip, hwdst="ff:ff:ff:ff:ff:ff", hsrc=target_mac), count=5)
+    send(ARP(op=2, psrc=gateway_ip, pdst=target_ip, hwdst="ff:ff:ff:ff:ff:ff", hwsrc=gateway_mac), count=5)
+    send(ARP(op=2, psrc=target_ip, pdst=gateway_ip, hwdst="ff:ff:ff:ff:ff:ff", hwsrc=target_mac), count=5)
     
 def get_mac(ip_address):
     
