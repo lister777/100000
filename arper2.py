@@ -83,17 +83,17 @@ poison_thread.start()
 
 try:
     print("[*] Starting sniffer for %d packets" % packet_count)
-
+    
     bpf_filter = "ip host %s" % target_ip
-    packets = sniff(count=packets, filter=bpf_filter, iface=interface)
-
+    packets = sniff(count=packet_count, filter=bpf_filter, iface=interface)
+    
+    print("[*] Writing packets to arper2.pcap")
+    wrpcap('arper2.pcap',packets)
+    
 except KeyboardInterrupt:
     pass
 
 finally:
-    # write out the captuer packet
-    print("[*] Writing packets to arper.pcap")
-    wrpcap('arper.pcap',packets)
     
     poisoning = False
     
