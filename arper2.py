@@ -85,7 +85,7 @@ try:
     print("[*] Starting sniffer for %d packets" % packet_count)
 
     bpf_filter = "ip host %s" % target_ip
-    packets = sniffer(count=packets, filter=bpf_filter, iface=interface)
+    packets = sniff(count=packets, filter=bpf_filter, iface=interface)
 
 except KeyboardInterrupt:
     pass
