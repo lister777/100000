@@ -4,14 +4,14 @@ import subprocess
 import itertools
 
 session = boto3.session.Session()
-#default_region = "ap-southeast-2"
+default_region = "ap-southeast-2"
 
 option_dict = {
     'test': ['--option1','--option2'],
     'list': ['--region','--profile']
     }
         
-def list_instances(region=None, profile=None):
+def list_instances(region=default_region, profile=None):
     global instances
     try:
         if profile is None:
@@ -59,17 +59,19 @@ class MyPrompt(Cmd):
     def do_list(self, inp):
         options = option_dict['list']
         warning = "Invaild options. Example: list --region us-east-1"
+
         if inp:
-            try:
-                inp_dict = dict(itertools.zip_longest(*[iter(inp.split()[1:])] * 2, fillvalue=""))
-                if list(inp_dict.values())[-1]: #and set(inp_dict.keys()).issubset(set(options)):
-                    list_instances(region=inp_dict.get('--region', 'ap-southeast-2'), profile=inp_dict.get('--profile'))
-                else:
-                    print(warning)
-            except Exception as e:
-                print(e)
+            inp_dict = dict(itertools.zip_longest(*[iter(inp.split())] * 2, fillvalue=""))
+            if list(inp_dict.values())[-1] and set(inp_dict.keys()).issubset(set(options)):
+                try:
+                    list_instances(region=inp_dict.get('--region'), profile=inp_dict.get('--profile'))
+                except Exception as e:
+                    print(e)
+            else:
+                print(warning)
         else:
             list_instances()
+          
             
     def complete_list(self, text, line, start_index, end_index):
         options = option_dict['list']
