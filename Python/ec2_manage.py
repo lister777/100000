@@ -2,13 +2,16 @@ from cmd import Cmd
 import boto3
 import subprocess
 import itertools
+import json
+import os
 
 session = boto3.session.Session()
 default_region = "ap-southeast-2"
 
 option_dict = {
     'test': ['--option1','--option2'],
-    'list': ['--region','--profile']
+    'list': ['--region','--profile'],
+    'run': ['--region','--profile', '--vpc_id', '--subnet_id', '--image_id', '--type', '--name', '--iam_role']
     }
         
 def list_instances(region=default_region, profile=None):
@@ -26,20 +29,127 @@ def list_instances(region=default_region, profile=None):
                         return tag['Value']
             return " "
 
-        instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
-        print("{:<5} {:<30} {:<25} {:<20} {:<15}".format("No.", "Name", "Id", "Public IP", "Type"))
+        instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running','pending']}])
+        print("{:<5} {:<30} {:<23} {:<18} {:<12} {:<10} {:<15} {:<18} {:<10}".format("No.", "Name", "Id", "Public IP", "Type", 
+        "State", "VPC_id", "Subnet_id", "Image_id"))
         for i, instance in enumerate(instances):
-            print("{:<5} {:<30} {:<25} {:<20} {:<15}".format(
-                i, check_tag(instance.tags), instance.id,
-                instance.public_ip_address, instance.instance_type))
+            print("{:<5} {:<30} {:<23} {:<18} {:<12} {:<10} {:<15} {:<18} {:<10}".format(
+                i, check_tag(instance.tags), instance.id, instance.public_ip_address, instance.instance_type,
+                list(instance.state.values())[-1], instance.vpc_id, instance.subnet_id, instance.image_id))
     except Exception as e:
         print(e)
 
+def run_instances(region=default_region, **kwargs):
+    try:
+        ec2 = session.resource('ec2', region_name=region)
+        default_vpc = list(ec2.vpcs.filter(Filters=[{'Name': 'isDefault', 'Values': ['true']}]))[0].id
+        default_subnet = list(ec2.subnets.filter(Filters=[{'Name': 'vpc-id', 'Values': [default_vpc]}]))[0].id
+        default_type = 't2.micro'
+        if kwargs.get('--profile'):
+            ec2 = session.client('ec2', region_name=region, profile_name=kwargs.get('--profile'))
+        else:
+            ec2 = session.client('ec2', region_name=region)
+    
+        print(default_vpc)
+        print(default_subnet)
+    except Exception as e:
+        print(e)
+        
+def configure_template():
+   # configure the instance launch template
+   
+    region          =  input("region: ")
+    vpc_id          =  input("vpc_id: ")
+    subnet_id       =  input("subnet_id: ")
+    image_id        =  input("image_id: ")
+    type            =  input("instance_type: ")
+    name            =  input("instance_name: ")
+    iam_role        =  input("EC2_role: ")
+    ssh_key         =  input("SSH_Key: ")
+    ssh_key_path    =  input("SSH_Key_Path: ")
+    template_name   =  input("template_name: ")
+    
+    template = {
+        "region":region,
+        "vpc_id":vpc_id,
+        "subnet_id":subnet_id,
+        "image_id":image_id,
+        "type":type,
+        "name":name,
+        "iam_role":iam_role,
+        "ssh_key":ssh_key,
+        "ssh_key_path":ssh_key_path
+    }
+   
+    path = os.path.expanduser("~") + '/.dudu'
+    file = '/instance_template.json'
+    file_path = path + file
+    
+    if not os.path.exists(file_path):
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        open(file_path, 'a').close()
+    
+    with open(file_path, 'r') as f:
+        template_file = f.read()
+        if template_file:
+            template_json = json.loads(template_file)
+            template_json[template_name] = template
+        else:
+            template_json = {template_name:template}
+            
+    with open(file_path, 'w') as f:        
+        template_file = json.dumps(template_json, sort_keys=True, indent=4)
+        f.write(json.dumps(template_file))
+    
+    print(template_name, "is saved.")
+    print(template_file)
 
+             
+            
+def configure_template_options(**kwargs):
+    # configure/modify instance launch tempalte with options
+    
+    path = os.path.expanduser("~") + '/.dudu'
+    file = '/config.json'
+    file_path = path + file
+    
+    try:
+        with open(file_path, 'r') as f:
+            template_file = f.read()
+            
+            if template_file:
+                template_json = json.loads(config_file)
+                inp_options = dict(kwargs)
+                template_name = inp_options['--template_name']
+                inp_options.pop('--template_name')
+                
+                for k, v in inp_options:
+                    template_json[template_name][k] = v
+            else:
+                template_json = {template_name:inp_options}
+                
+        with open(file_path, 'w') as f:   
+            template_file = json.dumps(template_json, sort_keys=True, indent=4)
+            f.write(json.dumps(template_file))
+
+        print(template_name, "is updated.")
+        print(template_file)
+            
+    except Exception as e:
+        print(e)
+
+def option_verify(inp, options):
+    inp_dict = dict(itertools.zip_longest(*[iter(inp.split())] * 2, fillvalue=""))
+    if list(inp_dict.values())[-1] and set(inp_dict.keys()).issubset(set(options)):
+        return True
+    else
+        return False
+    
 def remote_ssh(number, user):
-    instance = list(instances)[int(number)]
-    key_path = "/Users/admin/Documents/Key_Chain/{}.pem".format(instance.key_name)
-    command = "ssh -i {} {}@{}".format(key_path, user, instance.public_ip_address)
+    instance    =   list(instances)[int(number)]
+    key_path    =   "/Users/admin/Documents/Key_Chain/{}.pem".format(instance.key_name)
+    command     =   "ssh -i {} {}@{}".format(key_path, user, instance.public_ip_address)
     subprocess.call(command, shell=True)
 
 
@@ -51,7 +161,15 @@ class MyPrompt(Cmd):
         # exit the application. Shorthand: x q.
         print("Bye")
         return True
-
+    
+    def do_configure(self, inp):
+        if inp:
+            if option_verify(inp, options):
+                pass
+        else:
+            
+            
+            
     def do_setregion(self, inp):
         global default_region
         default_region = inp
@@ -61,8 +179,7 @@ class MyPrompt(Cmd):
         warning = "Invaild options. Example: list --region us-east-1"
 
         if inp:
-            inp_dict = dict(itertools.zip_longest(*[iter(inp.split())] * 2, fillvalue=""))
-            if list(inp_dict.values())[-1] and set(inp_dict.keys()).issubset(set(options)):
+            if option_verify(inp, options):
                 try:
                     list_instances(region=inp_dict.get('--region'), profile=inp_dict.get('--profile'))
                 except Exception as e:
@@ -91,12 +208,15 @@ class MyPrompt(Cmd):
         elif len(tokens) == 1:
             return [x[2:] for x in tree if x.startswith(tokens[0])]
         else:
+            if tokens[0] in tree:
+                tree.remove(tokens[0])
             return self.traverse(tokens[1:],tree)
 
     def do_test(self, inp):
         print(inp)
             
     def complete_test(self, text, line, start_index, end_index):
+        print(text)
         options = option_dict['test']
         try:
             tokens = [t for t in line.split() if t.startswith('--')]
