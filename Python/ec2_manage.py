@@ -11,7 +11,9 @@ default_region = "ap-southeast-2"
 option_dict = {
     'test': ['--option1','--option2'],
     'list': ['--region','--profile'],
-    'run': ['--region','--profile', '--vpc_id', '--subnet_id', '--image_id', '--type', '--name', '--iam_role']
+    'run': ['--region','--profile', '--vpc-id', '--subnet-id', '--image-id', '--type', '--name', '--iam-role'],
+    'configure':['--region','--vpc-id', '--subnet-id', '--image-id', '--instance-type', '--name', '--iam-role', '--ssh-key',
+                '--ssh-keypath','--template-name']
     }
         
 def list_instances(region=default_region, profile=None):
@@ -30,8 +32,10 @@ def list_instances(region=default_region, profile=None):
             return " "
 
         instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running','pending']}])
-        print("{:<5} {:<30} {:<23} {:<18} {:<12} {:<10} {:<15} {:<18} {:<10}".format("No.", "Name", "Id", "Public IP", "Type", 
-        "State", "VPC_id", "Subnet_id", "Image_id"))
+        
+        print("{:<5} {:<30} {:<23} {:<18} {:<12} {:<10} {:<15} {:<18} {:<10}".format("No.", "Name", 
+            "Id", "Public IP", "Type", "State", "VPC_id", "Subnet_id", "Image_id"))
+            
         for i, instance in enumerate(instances):
             print("{:<5} {:<30} {:<23} {:<18} {:<12} {:<10} {:<15} {:<18} {:<10}".format(
                 i, check_tag(instance.tags), instance.id, instance.public_ip_address, instance.instance_type,
@@ -59,26 +63,26 @@ def configure_template():
    # configure the instance launch template
    
     region          =  input("region: ")
-    vpc_id          =  input("vpc_id: ")
-    subnet_id       =  input("subnet_id: ")
-    image_id        =  input("image_id: ")
-    type            =  input("instance_type: ")
-    name            =  input("instance_name: ")
-    iam_role        =  input("EC2_role: ")
-    ssh_key         =  input("SSH_Key: ")
-    ssh_key_path    =  input("SSH_Key_Path: ")
-    template_name   =  input("template_name: ")
+    vpc_id          =  input("vpc-id: ")
+    subnet_id       =  input("subnet-id: ")
+    image_id        =  input("image-id: ")
+    instance_type   =  input("instance-type: ")
+    name            =  input("instance-name: ")
+    iam_role        =  input("EC2-role: ")
+    ssh_key         =  input("SSH-Key: ")
+    ssh_keypath     =  input("SSH-KeyPath: ")
+    template_name   =  input("template-name: ")
     
     template = {
-        "region":region,
-        "vpc_id":vpc_id,
-        "subnet_id":subnet_id,
-        "image_id":image_id,
-        "type":type,
-        "name":name,
-        "iam_role":iam_role,
-        "ssh_key":ssh_key,
-        "ssh_key_path":ssh_key_path
+        "region":       region,
+        "vpc-id":       vpc_id,
+        "subnet-id":    subnet_id,
+        "image-id":     image_id,
+        "instance-type":instance_type,
+        "name":         name,
+        "iam-role":     iam_role,
+        "ssh-key":      ssh_key,
+        "ssh-keypath":  ssh_keypath
     }
    
     path = os.path.expanduser("~") + '/.dudu'
@@ -100,38 +104,36 @@ def configure_template():
             
     with open(file_path, 'w') as f:        
         template_file = json.dumps(template_json, sort_keys=True, indent=4)
-        f.write(json.dumps(template_file))
+        f.write(template_file)
     
     print(template_name, "is saved.")
     print(template_file)
 
              
             
-def configure_template_options(**kwargs):
-    # configure/modify instance launch tempalte with options
+def configure_template_options(inp_options):
+    # configure/modify instance launch template with options
     
     path = os.path.expanduser("~") + '/.dudu'
-    file = '/config.json'
+    file = '/instance_template.json'
     file_path = path + file
     
     try:
         with open(file_path, 'r') as f:
             template_file = f.read()
-            
+            template_name = inp_options.pop('--template-name', 'default')
+
             if template_file:
-                template_json = json.loads(config_file)
-                inp_options = dict(kwargs)
-                template_name = inp_options['--template_name']
-                inp_options.pop('--template_name')
-                
-                for k, v in inp_options:
-                    template_json[template_name][k] = v
+                template_json = json.loads(template_file)
+                print(template_json)
+                for k, v in inp_options.items():
+                    template_json[template_name][k[2:]] = v
             else:
                 template_json = {template_name:inp_options}
                 
         with open(file_path, 'w') as f:   
             template_file = json.dumps(template_json, sort_keys=True, indent=4)
-            f.write(json.dumps(template_file))
+            f.write(template_file)
 
         print(template_name, "is updated.")
         print(template_file)
@@ -139,11 +141,10 @@ def configure_template_options(**kwargs):
     except Exception as e:
         print(e)
 
-def option_verify(inp, options):
-    inp_dict = dict(itertools.zip_longest(*[iter(inp.split())] * 2, fillvalue=""))
+def option_verify(inp_dict, options):
     if list(inp_dict.values())[-1] and set(inp_dict.keys()).issubset(set(options)):
         return True
-    else
+    else:
         return False
     
 def remote_ssh(number, user):
@@ -156,6 +157,31 @@ def remote_ssh(number, user):
 class MyPrompt(Cmd):
     prompt = 'pb> '
     intro = "Welcome! Type ? to list commands"
+    
+    def traverse(self,tokens,tree):
+        if tree is None:
+            return []
+        elif len(tokens) == 1:
+            if tokens[0] in tree:
+                return []
+            else:
+                return [x[2:] for x in tree if x.startswith(tokens[0])]
+        else:
+            if tokens[0] in tree:
+                tree.remove(tokens[0])
+            return self.traverse(tokens[1:],tree)
+            
+    def command_complete(self, command_name, line):
+        options = option_dict[command_name]
+        try:
+            tokens = [t for t in line.split() if t.startswith('--')]
+            if len(tokens) == 0:
+                return []
+            else:
+                results = self.traverse(tokens,options)
+                return results
+        except Exception as e:
+            print(e)
 
     def do_exit(self, inp):
         # exit the application. Shorthand: x q.
@@ -163,23 +189,32 @@ class MyPrompt(Cmd):
         return True
     
     def do_configure(self, inp):
+        options = option_dict['configure']
+        warning = "Invaild options. Example: configure --template-name"
         if inp:
-            if option_verify(inp, options):
-                pass
+            inp_dict = dict(itertools.zip_longest(*[iter(inp.split())] * 2, fillvalue=""))
+            if option_verify(inp_dict, options):
+                configure_template_options(inp_dict)
+            else:
+                print(warning)
         else:
+            configure_template()
             
-            
+    def complete_configure(self, text, line, start_index, end_index):
+        return self.command_complete('configure', line)
             
     def do_setregion(self, inp):
         global default_region
         default_region = inp
 
+
     def do_list(self, inp):
         options = option_dict['list']
         warning = "Invaild options. Example: list --region us-east-1"
-
+        
         if inp:
-            if option_verify(inp, options):
+            inp_dict = dict(itertools.zip_longest(*[iter(inp.split())] * 2, fillvalue=""))
+            if option_verify(inp_dict, options):
                 try:
                     list_instances(region=inp_dict.get('--region'), profile=inp_dict.get('--profile'))
                 except Exception as e:
@@ -189,44 +224,9 @@ class MyPrompt(Cmd):
         else:
             list_instances()
           
-            
+          
     def complete_list(self, text, line, start_index, end_index):
-        options = option_dict['list']
-        try:
-            tokens = [t for t in line.split() if t.startswith('--')]
-            if len(tokens) == 0:
-                return []
-            else:
-                results = self.traverse(tokens,options)
-                return results
-        except Exception as e:
-            print(e)
-        
-    def traverse(self,tokens,tree):
-        if tree is None:
-            return []
-        elif len(tokens) == 1:
-            return [x[2:] for x in tree if x.startswith(tokens[0])]
-        else:
-            if tokens[0] in tree:
-                tree.remove(tokens[0])
-            return self.traverse(tokens[1:],tree)
-
-    def do_test(self, inp):
-        print(inp)
-            
-    def complete_test(self, text, line, start_index, end_index):
-        print(text)
-        options = option_dict['test']
-        try:
-            tokens = [t for t in line.split() if t.startswith('--')]
-            if len(tokens) == 0:
-                return []
-            else:
-                results = self.traverse(tokens,options)
-                return results
-        except Exception as e:
-            print(e)
+        return self.command_complete('list', line)
             
     def do_ssh(self, inp, user="ec2-user"):
         remote_ssh(inp, user)
