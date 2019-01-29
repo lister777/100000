@@ -1,5 +1,6 @@
 from global_settings import session, default_region
 
+#instances = None
 
 def list_instances(region=default_region, profile=None):
     global instances

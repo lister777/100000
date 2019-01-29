@@ -5,6 +5,7 @@ import itertools
 
 import listec2_module
 import configure_module
+import ssh_module
 from global_settings import option_dict, option_verify
 
 
@@ -28,11 +29,7 @@ def run_instances(region=default_region, **kwargs):
 
 
     
-def remote_ssh(number, user):
-    instance    =   list(instances)[int(number)]
-    key_path    =   "/Users/admin/Documents/Key_Chain/{}.pem".format(instance.key_name)
-    command     =   "ssh -i {} {}@{}".format(key_path, user, instance.public_ip_address)
-    subprocess.call(command, shell=True)
+
 
 
 class MyPrompt(Cmd):
@@ -105,7 +102,7 @@ class MyPrompt(Cmd):
         return self.command_complete('list', line)
             
     def do_ssh(self, inp, user="ec2-user"):
-        remote_ssh(inp, user)
+        ssh_module.remote_ssh(inp, user)
 
     def do_shell(self, inp):
         subprocess.call(inp, shell=True)

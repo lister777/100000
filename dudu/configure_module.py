@@ -1,7 +1,5 @@
-from global_settings import session, default_region
 import json
 import os
-import itertools
 
 def configure_template():
    # configure the instance launch template
